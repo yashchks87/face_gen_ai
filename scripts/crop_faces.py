@@ -9,6 +9,7 @@ import cv2
 import argparse
 import glob
 from tqdm import tqdm
+import pickle
 
 class CropFaces():
     def __init__(self, input_dir, output_dir):
@@ -25,13 +26,35 @@ class CropFaces():
     def init_detector(self):
         self.detector = MTCNN()
         print('Model is initialized.')
+
+    def crop_and_save(self, image, co_ords, image_name):
+        im_crop = image.crop((co_ords[0], co_ords[1], co_ords[0] + co_ords[2], co_ords[1] + co_ords[3]))
+        # image = image[co_ords[0]:(co_ords[0] + co_ords[2]), co_ords[1]:(co_ords[1] + co_ords[3])]
+        # cv2.imwrite(self.output_dir+image_name, im_crop)
+        im_crop.save(self.output_dir+image_name)
+
     
     def detect_faces(self):
+        issues = []
         for img in self.input_images:
-            image = cv2.cvtColor(cv2.imread(img), cv2.COLOR_BGR2RGB)
-            detected = self.detector.detect_faces(image)
-            if len(detected) > 1:
-                print(detected)
+            img_name = img.split('/')[-1]
+            image = Image.open(img)
+            img_arr = np.array(image)
+            try:
+                detected = self.detector.detect_faces(img_arr)
+                if len(detected) > 1:
+                    for detections in range(len(detected)):
+                        data = detected[detections]['box']
+                        image_name_ = img_name.split('.')[0] + str(detections)
+                        self.crop_and_save(image, data, image_name_ + '_' + '.jpg')    
+                elif len(detected) == 1:
+                    data = detected[0]['box']
+                    self.crop_and_save(image, data, img_name)
+            except:
+                print(img)
+                issues.append(img)
+        with open('./issues.pkl', 'wb') as handle:
+            pickle.dump(issues, handle)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--input_dir')
@@ -47,4 +70,4 @@ class_obj.detect_faces()
 
 
 # Demo string
-# python crop_faces.py -i '../../face_files/part1/' -o '../../face_files/part_1_cropped/'
+# python crop_faces.py -i ../../face_files/wild_faces/part1/ -o ../../face_files/part_1_cropped/
